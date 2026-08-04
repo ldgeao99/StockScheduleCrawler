@@ -229,8 +229,8 @@ def run_stock_crawler():
                                 cells_list = [re.sub(r'\s+', '', cell.get_text()) for cell in d_cells]
                                 row_split_text = "|".join(cells_list)
 
-                                is_summary_row = "합계" in cells_list or "총계" in cells_list or any(
-                                    item in ["합계", "총계", "총합계"] for item in cells_list)
+                                is_summary_row = any(
+                                    item.endswith("합계") or item.endswith("총계") for item in cells_list if item)
                                 has_percentage = any("%" in item for item in cells_list)
 
                                 is_financial_noise = any(
