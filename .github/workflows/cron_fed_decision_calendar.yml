@@ -2,8 +2,9 @@ name: crawl_fed_decision_calendar (Monthly)
 
 on:
   schedule:
-    # 한국 시간(KST) 매월 1일 오전 06시 00분 실행 설정 (UTC 21:00)
-    - cron: '0 21 1 * *'
+    # 한국 시간(KST) 매월 1일 오전 06시 실행 목표. UTC 1일 21:00으로 걸면 KST로는 2일 06시가 되어버리므로,
+    # 매월 마지막날(28~31일) 21:00 UTC에 걸어두고 스크립트 내부에서 KST 기준 1일인지 재확인함
+    - cron: '0 21 28-31 * *'
   workflow_dispatch:
 
 jobs:
