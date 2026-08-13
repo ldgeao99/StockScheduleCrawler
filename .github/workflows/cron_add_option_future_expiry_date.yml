@@ -1,4 +1,4 @@
-name: crawl_option_expiry_calendar (Monthly)
+name: add_option_future_expiry_date (Monthly)
 
 on:
   schedule:
