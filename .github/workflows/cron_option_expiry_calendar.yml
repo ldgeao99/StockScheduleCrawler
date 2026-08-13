@@ -1,0 +1,33 @@
+name: crawl_option_expiry_calendar (Monthly)
+
+on:
+  schedule:
+    # 한국 시간(KST) 매월 1일 오전 06시 00분 실행 설정 (UTC 21:00)
+    - cron: '0 21 1 * *'
+  workflow_dispatch: # 필요 시 깃허브 액션 웹에서 수동 실행 가능 버튼 활성화
+
+jobs:
+  run-crawler:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install google-cloud-firestore
+
+    - name: Decode Firebase Key
+      run: |
+        echo "${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}" | base64 --decode > stockcalender-13042-firebase-adminsdk-fbsvc-18b1748d9a.json
+
+    - name: Run Option Expiry Calendar Generator
+      run: |
+        python add_option_future_expiry_date.py
