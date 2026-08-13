@@ -115,7 +115,7 @@ def run_option_expiry_crawler():
         log_payload = {
             "timestamp": firestore.SERVER_TIMESTAMP,
             "status": "SUCCESS",
-            "task_name": "[crawl_option_expiry_calendar] 국내 옵션만기일 일정 생성",
+            "task_name": "[add_option_expiry_calendar] 국내 옵션만기일 일정 생성",
             "added_count": success_count,
             "updated_count": update_count,
             "skipped_count": skip_count,
