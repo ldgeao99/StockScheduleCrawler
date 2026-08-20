@@ -35,6 +35,11 @@ events_ref = db.collection("events") if db else None
 logs_ref = db.collection("crawler_logs") if db else None
 
 
+def has_confirmed_price(detail_text: str) -> bool:
+    """detail 텍스트에 '미정'이 아닌 실제 확정 공모가가 이미 기록되어 있는지 여부"""
+    return "공모가:" in detail_text and "공모가: 미정" not in detail_text
+
+
 def clean_text(text):
     """인코딩 깨짐 및 유령 공백 문자를 완전히 박멸하는 함수"""
     if not text:
@@ -119,6 +124,7 @@ def run_stock_crawler():
 
         rows = table.find_all("tr")
         success_count = 0
+        update_count = 0
         skip_count = 0
         current_year = datetime.now().year
 
@@ -150,6 +156,11 @@ def run_stock_crawler():
                 continue
 
             # 중복 검증 단계
+            # 💡 이미 등록된 일정이라도 '확정 공모가'가 아직 없는 경우엔 매일 재크롤링하며
+            #    공모가가 새로 발표되었는지 계속 확인해야 하므로, 무조건 스킵하지 않고
+            #    기존 문서(existing_doc)를 들고 다음 단계(상세 페이지 조회)로 넘어간다.
+            existing_doc = None
+            existing_detail = ""
             if events_ref:
                 duplicate_query = events_ref.where(
                     filter=FieldFilter("date", "==", formatted_date)
@@ -158,14 +169,20 @@ def run_stock_crawler():
                 ).get()
 
                 if len(duplicate_query) > 0:
-                    skip_count += 1
-                    # 💡 스킵된 종목 기록 저장
-                    skipped_list.append({
-                        "date": formatted_date,
-                        "name": stock_name,
-                        "reason": "DB 내 중복된 일정 발견 (스킵 처리)"
-                    })
-                    continue
+                    existing_doc = duplicate_query[0]
+                    existing_detail = existing_doc.to_dict().get("detail") or ""
+
+                    if has_confirmed_price(existing_detail):
+                        skip_count += 1
+                        # 💡 스킵된 종목 기록 저장
+                        skipped_list.append({
+                            "date": formatted_date,
+                            "name": stock_name,
+                            "reason": "DB 내 중복 + 확정 공모가 이미 존재 (스킵 처리)"
+                        })
+                        continue
+
+                    print(f"⏳ [공모가 미확정] {stock_name} - 기존 일정에 확정 공모가가 없어 최신 정보 재확인 진행")
 
             detail_route = stock_a.get("href")
             if "index.htm" in detail_route:
@@ -179,7 +196,12 @@ def run_stock_crawler():
             print(f"\n🔍 [디버깅 대상 종목 시작] -------------------------------")
             print(f"🏢 종목명: {stock_name} | 🔗 URL: {detail_url}")
 
-            detail_desc = "신규상장 예정 종목"
+            if existing_doc:
+                # 💡 이미 등록된 종목의 공모가 재확인 케이스: 기존에 AI가 요약해둔 사업 요약 첫 줄은
+                #    그대로 재사용하고(비용 절감), 공모가/유통 정보만 최신화한다.
+                detail_desc = existing_detail.split("\n")[0].strip() if existing_detail else "신규상장 예정 종목"
+            else:
+                detail_desc = "신규상장 예정 종목"
             confirmed_price = ""
             floating_shares = ""
             floating_amount = ""
@@ -258,9 +280,9 @@ def run_stock_crawler():
                             if floating_shares:
                                 break
 
-                    # 3. OpenAI 요약 파트
+                    # 3. OpenAI 요약 파트 (신규 종목일 때만 수행 - 기존 종목은 저장된 요약을 재사용)
                     page_text = detail_soup.get_text()
-                    if "1." in page_text or "사업현황" in page_text:
+                    if not existing_doc and ("1." in page_text or "사업현황" in page_text):
                         cleaned_page_text = clean_text(page_text)
                         start_idx = cleaned_page_text.find("1.")
                         if start_idx == -1:
@@ -286,28 +308,55 @@ def run_stock_crawler():
                     print(f"⚠️ {stock_name} 유통가능액수 수식 연산 오류: {str(calc_err)}")
 
             # 구조 결합
+            # 💡 확정 공모가가 아직 없는 경우에도 '미정' 상태를 명시적으로 남겨서
+            #    다음 크롤링에서 공모가가 새로 확정됐는지 계속 재확인할 수 있게 한다.
             if confirmed_price:
                 detail_desc = f"{detail_desc}\n공모가: {confirmed_price}"
+            else:
+                detail_desc = f"{detail_desc}\n공모가: 미정"
+
             if floating_shares:
                 detail_desc = f"{detail_desc}\n유통가능물량: {floating_shares}"
+
             if floating_amount:
                 detail_desc = f"{detail_desc}\n유통가능액수: {floating_amount}"
+            elif not confirmed_price:
+                detail_desc = f"{detail_desc}\n유통가능액수: 공모가 확정 대기중"
 
-            if events_ref:
-                payload = {
-                    "date": formatted_date,
-                    "category": "신규상장",
-                    "eventName": stock_name,
-                    "detail": detail_desc,
-                    "relatedStocks": "",
-                    "url": detail_url
-                }
-                events_ref.add(payload)
-                success_count += 1
-                print(f"✅ 데이터 최종 적재 성공 완료")
+            if existing_doc:
+                # 💡 기존에 등록된 일정 - detail 내용에 실질적인 변화(공모가 확정 등)가 있을 때만 갱신한다.
+                if detail_desc == existing_detail:
+                    skip_count += 1
+                    skipped_list.append({
+                        "date": formatted_date,
+                        "name": stock_name,
+                        "reason": "확정 공모가 아직 미발표 (다음 회차에 재확인)"
+                    })
+                    print(f"⏭️ 확정 공모가 아직 미발표 - 다음 크롤링에서 재확인 예정")
+                    print(f"🔍 [디버깅 대상 종목 종료] -------------------------------\n")
+                    continue
+
+                if events_ref:
+                    existing_doc.reference.update({"detail": detail_desc})
+                    print(f"🔄 확정 공모가 신규 발표 감지 - 기존 일정 detail 갱신 완료")
+                else:
+                    print(f"📝 [드라이런 모드 로그 출력] 공모가 갱신 대상 날짜: {formatted_date} | 종목: {stock_name}")
+                update_count += 1
             else:
+                if events_ref:
+                    payload = {
+                        "date": formatted_date,
+                        "category": "신규상장",
+                        "eventName": stock_name,
+                        "detail": detail_desc,
+                        "relatedStocks": "",
+                        "url": detail_url
+                    }
+                    events_ref.add(payload)
+                    print(f"✅ 데이터 최종 적재 성공 완료")
+                else:
+                    print(f"📝 [드라이런 모드 로그 출력] 날짜: {formatted_date} | 종목: {stock_name}")
                 success_count += 1
-                print(f"📝 [드라이런 모드 로그 출력] 날짜: {formatted_date} | 종목: {stock_name}")
 
             # 💡 정상 처리 완료 리스트 기록 추가
             processed_list.append({
@@ -347,11 +396,12 @@ def run_stock_crawler():
                 "status": "SUCCESS",
                 "task_name": "[crawl_ipo_schedule] 38커뮤니케이션 IPO일정 수집",
                 "added_count": success_count,
+                "updated_count": update_count,
                 "skipped_count": skip_count,
-                "message": f"AI 수집 자동화 정상 종료 - 신규: {success_count}건, 중복 스킵: {skip_count}건"
+                "message": f"AI 수집 자동화 정상 종료 - 신규: {success_count}건, 공모가 갱신: {update_count}건, 중복 스킵: {skip_count}건"
             }
             logs_ref.add(log_payload)
-        print(f"\n🏁 AI 파이프라인 프로세스 종료. 추가: {success_count}건 / 스킵: {skip_count}건")
+        print(f"\n🏁 AI 파이프라인 프로세스 종료. 추가: {success_count}건 / 공모가 갱신: {update_count}건 / 스킵: {skip_count}건")
         print("=" * 80 + "\n")
 
     except Exception as e:
