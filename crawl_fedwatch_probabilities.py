@@ -217,7 +217,6 @@ def run_fedwatch_crawler():
             "meetingDate": data["meetingDate"],
             "currentTargetRate": data["currentTargetRate"],
             "dataAsOf": data["dataAsOf"],
-            "summary": data["summary"],
             "probabilities": data["probabilities"],
         }
 
