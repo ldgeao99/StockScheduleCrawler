@@ -1,0 +1,35 @@
+name: crawl_fedwatch_probabilities (Daily)
+
+on:
+  schedule:
+    # 한국 시간(KST) 매일 오전 07시 1회 실행 목표.
+    # GitHub Actions cron 은 UTC 기준이므로 22:00 UTC = 익일 07:00 KST 에 해당함.
+    - cron: '0 22 * * *'
+  workflow_dispatch: # 필요 시 깃허브 액션 웹에서 수동 실행 가능 버튼 활성화
+
+jobs:
+  run-crawler:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        # 💡 curl_cffi 패키지 설치 바인딩 추가
+        pip install beautifulsoup4 google-cloud-firestore curl_cffi
+
+    - name: Decode Firebase Key
+      run: |
+        echo "${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}" | base64 --decode > stockcalender-13042-firebase-adminsdk-fbsvc-18b1748d9a.json
+
+    - name: Run CME FedWatch Probabilities Crawler
+      run: |
+        python crawl_fedwatch_probabilities.py
