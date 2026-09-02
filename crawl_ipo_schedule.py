@@ -147,6 +147,9 @@ def run_stock_crawler():
             stock_name = stock_name.split("(")[0].strip()
             stock_name = stock_name.replace("(주)", "").replace("주식회사", "").strip()
 
+            # 파이어베이스에 저장할 일정 제목: 종목명 + ' 상장'
+            event_name = f"{stock_name} 상장"
+
             try:
                 if len(raw_date.split('/')[0]) == 4:
                     date_obj = datetime.strptime(raw_date, "%Y/%m/%d")
@@ -163,10 +166,11 @@ def run_stock_crawler():
             existing_doc = None
             existing_detail = ""
             if events_ref:
+                # 신규 이름('종목명 상장') + 구 이름('종목명')을 함께 조회 → 이름이 바뀌어도 중복 없이 기존 문서를 찾음
                 duplicate_query = events_ref.where(
                     filter=FieldFilter("date", "==", formatted_date)
                 ).where(
-                    filter=FieldFilter("eventName", "==", stock_name)
+                    filter=FieldFilter("eventName", "in", [event_name, stock_name])
                 ).get()
 
                 if len(duplicate_query) > 0:
@@ -174,6 +178,9 @@ def run_stock_crawler():
                     existing_detail = existing_doc.to_dict().get("detail") or ""
 
                     if has_confirmed_price(existing_detail):
+                        # 구 이름('종목명')으로 저장돼 있으면 이 기회에 신 이름으로 갱신(마이그레이션)
+                        if existing_doc.to_dict().get("eventName") != event_name:
+                            existing_doc.reference.update({"eventName": event_name})
                         skip_count += 1
                         # 💡 스킵된 종목 기록 저장
                         skipped_list.append({
@@ -338,7 +345,7 @@ def run_stock_crawler():
                     continue
 
                 if events_ref:
-                    existing_doc.reference.update({"detail": detail_desc})
+                    existing_doc.reference.update({"detail": detail_desc, "eventName": event_name})
                     print(f"🔄 확정 공모가 신규 발표 감지 - 기존 일정 detail 갱신 완료")
                 else:
                     print(f"📝 [드라이런 모드 로그 출력] 공모가 갱신 대상 날짜: {formatted_date} | 종목: {stock_name}")
@@ -348,7 +355,7 @@ def run_stock_crawler():
                     payload = {
                         "date": formatted_date,
                         "category": "신규상장",
-                        "eventName": stock_name,
+                        "eventName": event_name,
                         "detail": detail_desc,
                         "relatedStocks": "",
                         "url": detail_url
