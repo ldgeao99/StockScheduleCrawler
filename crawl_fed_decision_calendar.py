@@ -240,7 +240,7 @@ def run_fed_crawler():
         log_payload = {
             "timestamp": firestore.SERVER_TIMESTAMP,
             "status": "SUCCESS",
-            "task_name": "[crawl_fed_decision_calendar] 美 연준 금리결정 수집",
+            "task_name": "[crawl_fed_decision_calendar] 美 중앙은행(FED) 금리결정 수집",
             "added_count": success_count,
             "updated_count": update_count,
             "skipped_count": skip_count,
@@ -258,7 +258,7 @@ def run_fed_crawler():
         logs_ref.add({
             "timestamp": firestore.SERVER_TIMESTAMP,
             "status": "FAILED",
-            "task_name": "[crawl_fed_decision_calendar] 美 연준 금리결정 수집",
+            "task_name": "[crawl_fed_decision_calendar] 美 중앙은행(FED) 금리결정 수집",
             "added_count": success_count,
             "updated_count": update_count,
             "skipped_count": skip_count,
@@ -268,7 +268,7 @@ def run_fed_crawler():
 
 if __name__ == "__main__":
     # 실행 시 이 배치 자신의 다음 실행 예정시간만 Firestore(crawler_schedules)에 기록
-    update_my_schedule(db, __file__, display_name="美 연준 금리결정 수집")
+    update_my_schedule(db, __file__, display_name="美 중앙은행(FED) 금리결정 수집")
 
     # cron('0 0 1 * *')이 UTC·KST 모두 1일이라 별도 날짜 가드 없이 바로 실행
     run_fed_crawler()
