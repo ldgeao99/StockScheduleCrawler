@@ -181,7 +181,7 @@ def run_fed_crawler():
         print("\n🔥 4. 파이어베이스 Firestore 데이터베이스 업로드 작업 시작...")
         print("=" * 60)
 
-        category_name = "일반"
+        category_name = "금리결정"
         final_event_name = "미국 FED 연준 금리결정"
 
         for ev in all_parsed_events:
@@ -192,10 +192,11 @@ def run_fed_crawler():
             # FOMC 금리결정은 미국 동부시간 오후 2시 발표 = 한국시간 다음날 새벽 3시
             final_detail = "한국시간 기준 다음날 새벽 3시"
 
+            # 신규 카테고리('금리결정') + 구 카테고리('일반')를 함께 조회 → 카테고리가 바뀌어도 중복 없이 기존 문서를 찾아 이관
             existing_docs = events_ref.where(
                 filter=FieldFilter("date", "==", db_date_str)
             ).where(
-                filter=FieldFilter("category", "==", category_name)
+                filter=FieldFilter("category", "in", [category_name, "일반"])
             ).where(
                 filter=FieldFilter("eventName", "==", final_event_name)
             ).get()
@@ -204,19 +205,22 @@ def run_fed_crawler():
                 doc = existing_docs[0]
                 existing_data = doc.to_dict()
 
-                # detail이 최신이고 이미 검증 표시(isVerified)까지 되어 있으면 쓰기 생략(중복 스킵)
-                if final_detail == existing_data.get("detail") and existing_data.get("isVerified") is True:
+                # 카테고리·detail이 최신이고 이미 검증 표시(isVerified)까지 되어 있으면 쓰기 생략(중복 스킵)
+                if (existing_data.get("category") == category_name
+                        and final_detail == existing_data.get("detail")
+                        and existing_data.get("isVerified") is True):
                     print(f"⏭️  [중복 스킵] 날짜: {db_date_str} | 이미 존재합니다.")
                     skip_count += 1
                     continue
 
-                # detail/검증 표시 갱신
+                # 카테고리/detail/검증 표시 갱신 (구 '일반' 문서는 '금리결정'으로 이관)
                 doc.reference.update({
+                    "category": category_name,
                     "detail": final_detail,
                     "isVerified": True
                 })
                 update_count += 1
-                print(f"🔄  [정보 업데이트] 날짜: {db_date_str} | detail/검증표시를 갱신했습니다.")
+                print(f"🔄  [정보 업데이트] 날짜: {db_date_str} | 카테고리/detail/검증표시를 갱신했습니다.")
             else:
                 # 완전 신규인 경우 컬렉션 추가
                 # FOMC는 공식 일정이라 별도 크로스체크 불필요 → isVerified=True(사실 확인 완료)로 저장
