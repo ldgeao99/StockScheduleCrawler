@@ -8,6 +8,7 @@ import re
 import sys
 from google.cloud import firestore
 from google.cloud.firestore_v1.base_query import FieldFilter
+from crawler_schedule import update_my_schedule
 
 # 정수 변환 제한 확장
 sys.set_int_max_str_digits(10000)
@@ -260,12 +261,8 @@ def run_fed_crawler():
 
 
 if __name__ == "__main__":
-    # GitHub Actions cron은 UTC 기준이라, 매월 마지막날(28~31일) 21:00 UTC에 걸어두고
-    # 여기서 KST 기준 실제로 1일인지 재확인해야 "매월 1일 06시(KST)"가 정확히 지켜짐
-    # 단, workflow_dispatch(수동 실행)는 테스트 목적이므로 날짜 가드를 건너뛰고 항상 실행
-    is_manual_run = os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch"
-    kst_now = datetime.utcnow() + timedelta(hours=9)
-    if not is_manual_run and kst_now.day != 1:
-        print(f"⏭️  KST 기준 오늘은 {kst_now.strftime('%Y-%m-%d')}(매월 1일이 아님) - 실행을 건너뜁니다.")
-    else:
-        run_fed_crawler()
+    # 실행 시 이 배치 자신의 다음 실행 예정시간만 Firestore(crawler_schedules)에 기록
+    update_my_schedule(db, __file__)
+
+    # cron('0 0 1 * *')이 UTC·KST 모두 1일이라 별도 날짜 가드 없이 바로 실행
+    run_fed_crawler()

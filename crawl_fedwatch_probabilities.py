@@ -6,6 +6,7 @@ import re
 import sys
 from google.cloud import firestore
 from google.cloud.firestore_v1.base_query import FieldFilter
+from crawler_schedule import update_my_schedule
 
 # 대규모 인트 연산 제한 방지용 설정
 sys.set_int_max_str_digits(10000)
@@ -266,4 +267,7 @@ if __name__ == "__main__":
     # 한국시간(KST) 매일 07시 1회 실행.
     # GitHub Actions cron 은 UTC 기준이므로 '0 22 * * *'(22:00 UTC = 익일 07:00 KST)로 설정함.
     # 매일 실행이라 별도 날짜 가드는 불필요.
+    # 실행 시 이 배치 자신의 다음 실행 예정시간만 Firestore(crawler_schedules)에 기록
+    update_my_schedule(db, __file__)
+
     run_fedwatch_crawler()

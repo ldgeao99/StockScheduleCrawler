@@ -8,6 +8,7 @@ import re
 import sys
 from google.cloud import firestore
 from google.cloud.firestore_v1.base_query import FieldFilter
+from crawler_schedule import update_my_schedule
 from openai import OpenAI
 
 # 정수 변환 제한 확장
@@ -419,4 +420,7 @@ def run_stock_crawler():
 
 
 if __name__ == "__main__":
+    # 실행 시 이 배치 자신의 다음 실행 예정시간만 Firestore(crawler_schedules)에 기록
+    update_my_schedule(db, __file__)
+
     run_stock_crawler()
