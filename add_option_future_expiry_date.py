@@ -16,7 +16,9 @@ db = firestore.Client()
 events_ref = db.collection("events")
 logs_ref = db.collection("crawler_logs")
 
-CATEGORY_NAME = "주의"
+# '주의'는 더 이상 카테고리가 아니라 플래그(isCaution). 옵션만기 일정은 category='일반' + isCaution=True 로 저장.
+CATEGORY_NAME = "일반"
+LEGACY_CATEGORY_NAME = "주의"  # 이관 대상: 예전에 category='주의'로 저장된 문서를 찾기 위함
 
 QUAD_WITCHING_MONTHS = {3, 6, 9, 12}
 
@@ -85,31 +87,43 @@ def run_option_expiry_crawler():
 
             print(f"📅 대상 일정: {db_date_str} | {event_name}")
 
-            # 신규 이름 + 구 이름까지 함께 조회 → 이름이 바뀌어도 기존 문서를 중복 없이 갱신
-            existing_docs = events_ref.where(
-                filter=FieldFilter("date", "==", db_date_str)
-            ).where(
-                filter=FieldFilter("category", "==", CATEGORY_NAME)
-            ).where(
-                filter=FieldFilter("eventName", "in", candidate_names)
-            ).get()
+            # 신규 이름 + 구 이름, 그리고 신규 카테고리('일반') + 구 카테고리('주의')를 함께 조회.
+            # (Firestore는 쿼리당 'in' 필터 1개만 허용하므로 카테고리는 두 번 나눠 조회)
+            existing_docs = []
+            for cat in (CATEGORY_NAME, LEGACY_CATEGORY_NAME):
+                docs = events_ref.where(
+                    filter=FieldFilter("date", "==", db_date_str)
+                ).where(
+                    filter=FieldFilter("category", "==", cat)
+                ).where(
+                    filter=FieldFilter("eventName", "in", candidate_names)
+                ).get()
+                if len(docs) > 0:
+                    existing_docs = docs
+                    break
 
             if len(existing_docs) > 0:
                 doc = existing_docs[0]
                 existing_data = doc.to_dict()
 
-                if existing_data.get("eventName") == event_name and existing_data.get("detail") == detail:
+                # 카테고리·이름·세부내용·주의표시가 모두 최신이면 스킵, 아니면 갱신(구 '주의' 카테고리는 '일반'+isCaution으로 이관)
+                if (existing_data.get("category") == CATEGORY_NAME
+                        and existing_data.get("eventName") == event_name
+                        and existing_data.get("detail") == detail
+                        and existing_data.get("isCaution") is True):
                     print(f"⏭️  [중복 스킵] 날짜: {db_date_str} | 이미 존재합니다.")
                     skip_count += 1
                     continue
 
                 doc.reference.update({
+                    "category": CATEGORY_NAME,
                     "eventName": event_name,
                     "detail": detail,
+                    "isCaution": True,
                     "url": ""
                 })
                 update_count += 1
-                print(f"🔄  [정보 업데이트] 날짜: {db_date_str} | 이름/세부내용을 갱신했습니다.")
+                print(f"🔄  [정보 업데이트] 날짜: {db_date_str} | 카테고리/이름/세부내용/주의표시를 갱신했습니다.")
             else:
                 payload = {
                     "date": db_date_str,
@@ -117,7 +131,8 @@ def run_option_expiry_crawler():
                     "eventName": event_name,
                     "detail": detail,
                     "relatedStocks": "",
-                    "url": ""
+                    "url": "",
+                    "isCaution": True
                 }
                 events_ref.add(payload)
                 success_count += 1
