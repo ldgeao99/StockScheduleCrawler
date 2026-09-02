@@ -268,6 +268,6 @@ if __name__ == "__main__":
     # GitHub Actions cron 은 UTC 기준이므로 '0 21 * * *'(21:00 UTC = 익일 06:00 KST)로 설정함.
     # 매일 실행이라 별도 날짜 가드는 불필요.
     # 실행 시 이 배치 자신의 다음 실행 예정시간만 Firestore(crawler_schedules)에 기록
-    update_my_schedule(db, __file__)
+    update_my_schedule(db, __file__, display_name=TASK_NAME)
 
     run_fedwatch_crawler()

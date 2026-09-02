@@ -324,7 +324,7 @@ def run_holiday_crawler():
 
 if __name__ == "__main__":
     # 실행 시 이 배치 자신의 다음 실행 예정시간만 Firestore(crawler_schedules)에 기록
-    update_my_schedule(db, __file__)
+    update_my_schedule(db, __file__, display_name="글로벌 증시 휴장 수집")
 
     # cron('0 0 1 * *')이 UTC·KST 모두 1일이라 별도 날짜 가드 없이 바로 실행
     run_holiday_crawler()

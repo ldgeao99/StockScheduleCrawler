@@ -28,7 +28,7 @@ FIELD_RANGES = [(0, 59), (0, 23), (1, 31), (1, 12), (0, 6)]
 
 # 저장값과 계산값을 비교해 '변경 여부'를 판단할 필드
 COMPARE_FIELDS = ("crawler", "workflowFile", "cron", "allCrons",
-                  "kstDay1Guard", "nextRunUtc", "nextRunKst")
+                  "kstDay1Guard", "nextRunUtc", "nextRunKst", "displayName")
 
 
 def _parse_field(field, lo, hi):
@@ -161,10 +161,11 @@ def compute_schedule_for(script_file, base_utc=None):
     }
 
 
-def update_my_schedule(db, script_file, verbose=True):
+def update_my_schedule(db, script_file, display_name=None, verbose=True):
     """이 크롤러 '자신'의 다음 실행 예정시간을 crawler_schedules 에 기록.
 
     - 자기 문서만 다룬다(다른 배치는 건드리지 않음).
+    - display_name: 배치 대시보드에 표시할 이름(배치 이름). 넘기면 문서에 displayName 으로 저장한다.
     - 값이 바뀌지 않았으면 쓰기를 생략한다(읽기 1회만).
     - db 가 None 이면 드라이런(출력만).
     - 어떤 예외도 밖으로 던지지 않는다(일정 기록 실패가 본 크롤링을 중단시키지 않도록).
@@ -175,6 +176,9 @@ def update_my_schedule(db, script_file, verbose=True):
             if verbose:
                 print("🗓️  (일정 정보 없음 - 워크플로우/cron 미발견, 기록 생략)")
             return None
+        if display_name:
+            # '[key] 이름' 형태로 넘어와도 앞의 [key] 접두어는 떼고 순수 표시 이름만 저장
+            s["displayName"] = display_name.split("] ", 1)[-1].strip()
         if verbose:
             print(f"🗓️  다음 실행 예정: {s['nextRunKst']}  [{s['key']}]")
 
