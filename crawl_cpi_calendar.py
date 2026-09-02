@@ -148,22 +148,26 @@ def run_cpi_crawler():
 
                 if len(existing_docs) > 0:
                     doc = existing_docs[0]
-                    if (doc.to_dict().get("detail") or "") == final_detail:
+                    doc_data = doc.to_dict()
+                    # detail이 최신이고 이미 검증 표시(isVerified)까지 되어 있으면 스킵, 아니면 갱신
+                    if (doc_data.get("detail") or "") == final_detail and doc_data.get("isVerified") is True:
                         print(f"⏭️  [중복 스킵] 날짜: {db_date_str} | 이미 존재합니다.")
                         skip_count += 1
                     else:
-                        doc.reference.update({"detail": final_detail})
+                        doc.reference.update({"detail": final_detail, "isVerified": True})
                         update_count += 1
-                        print(f"🔄  [세부내용 갱신] 날짜: {db_date_str} | detail을 갱신했습니다.")
+                        print(f"🔄  [갱신] 날짜: {db_date_str} | detail/검증표시를 갱신했습니다.")
                 else:
                     # 💡 [요구사항 반영] url 필드를 완전히 비워서("") 전송합니다.
+                    # CPI 발표는 공식 지표라 별도 크로스체크 불필요 → isVerified=True(사실 확인 완료)로 저장
                     payload = {
                         "date": db_date_str,
                         "category": category_name,
                         "eventName": final_event_name,
                         "detail": final_detail,
                         "relatedStocks": "",
-                        "url": ""
+                        "url": "",
+                        "isVerified": True
                     }
                     events_ref.add(payload)
                     success_count += 1
