@@ -189,8 +189,8 @@ def run_fed_crawler():
             clean_d = ev["days"].replace("일", "")
             db_date_str = f"{ev['year']}-{clean_m}-{clean_d}"
 
-            # 💡 [요구사항 반영] 세부 내용은 빈 문자열("")로 저장합니다.
-            final_detail = ""
+            # FOMC 금리결정은 미국 동부시간 오후 2시 발표 = 한국시간 다음날 새벽 3시
+            final_detail = "한국시간 기준 다음날 새벽 3시"
 
             existing_docs = events_ref.where(
                 filter=FieldFilter("date", "==", db_date_str)
@@ -204,28 +204,30 @@ def run_fed_crawler():
                 doc = existing_docs[0]
                 existing_data = doc.to_dict()
 
-                # detail이 이미 빈 문자열로 일치하면 쓰기 생략(중복 스킵)
-                if final_detail == existing_data.get("detail"):
+                # detail이 최신이고 이미 검증 표시(isVerified)까지 되어 있으면 쓰기 생략(중복 스킵)
+                if final_detail == existing_data.get("detail") and existing_data.get("isVerified") is True:
                     print(f"⏭️  [중복 스킵] 날짜: {db_date_str} | 이미 존재합니다.")
                     skip_count += 1
                     continue
 
-                # 기존 내용이 채워져 있었다면 비우는 업데이트 실행
+                # detail/검증 표시 갱신
                 doc.reference.update({
                     "detail": final_detail,
-                    "url": ""
+                    "isVerified": True
                 })
                 update_count += 1
-                print(f"🔄  [정보 업데이트] 날짜: {db_date_str} | 세부 내용을 비웠습니다.")
+                print(f"🔄  [정보 업데이트] 날짜: {db_date_str} | detail/검증표시를 갱신했습니다.")
             else:
                 # 완전 신규인 경우 컬렉션 추가
+                # FOMC는 공식 일정이라 별도 크로스체크 불필요 → isVerified=True(사실 확인 완료)로 저장
                 payload = {
                     "date": db_date_str,
                     "category": category_name,
                     "eventName": final_event_name,
                     "detail": final_detail,
                     "relatedStocks": "",
-                    "url": ""
+                    "url": "",
+                    "isVerified": True
                 }
                 events_ref.add(payload)
                 success_count += 1
