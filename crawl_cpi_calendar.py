@@ -53,6 +53,7 @@ def run_cpi_crawler():
     all_parsed_events = []
     success_count = 0
     skip_count = 0
+    update_count = 0
 
     try:
         print("🌐 1. 실제 Chrome 브라우저 세션을 모사하여 BLS 서버로 우회 접근 중...")
@@ -133,7 +134,8 @@ def run_cpi_crawler():
         final_event_name = "미국 소비자물가지수(CPI) 발표"
 
         for db_date_str in all_parsed_events:
-            final_detail = ""
+            # CPI 발표는 미국 동부시간 오전 8시 30분 = 한국시간 이날 오후 9시 30분
+            final_detail = "한국시간 기준 이날 오후 9시 30분"
 
             if events_ref:
                 existing_docs = events_ref.where(
@@ -145,8 +147,14 @@ def run_cpi_crawler():
                 ).get()
 
                 if len(existing_docs) > 0:
-                    print(f"⏭️  [중복 스킵] 날짜: {db_date_str} | 이미 존재합니다.")
-                    skip_count += 1
+                    doc = existing_docs[0]
+                    if (doc.to_dict().get("detail") or "") == final_detail:
+                        print(f"⏭️  [중복 스킵] 날짜: {db_date_str} | 이미 존재합니다.")
+                        skip_count += 1
+                    else:
+                        doc.reference.update({"detail": final_detail})
+                        update_count += 1
+                        print(f"🔄  [세부내용 갱신] 날짜: {db_date_str} | detail을 갱신했습니다.")
                 else:
                     # 💡 [요구사항 반영] url 필드를 완전히 비워서("") 전송합니다.
                     payload = {
@@ -170,13 +178,14 @@ def run_cpi_crawler():
                 "status": "SUCCESS",
                 "task_name": "[crawl_cpi_calendar] 美 소비자물가지수 수집",
                 "added_count": success_count,
+                "updated_count": update_count,
                 "skipped_count": skip_count,
-                "message": f"CPI 동기화 종료 - 신규 삽입: {success_count}건, 중복 스킵: {skip_count}건"
+                "message": f"CPI 동기화 종료 - 신규 삽입: {success_count}건, 세부내용 갱신: {update_count}건, 중복 스킵: {skip_count}건"
             }
             logs_ref.add(log_payload)
 
         print("\n" + "=" * 60)
-        print(f"🏁 파이프라인 프로세스 종료. 추가: {success_count}건 / 스킵: {skip_count}건")
+        print(f"🏁 파이프라인 프로세스 종료. 추가: {success_count}건 / 갱신: {update_count}건 / 스킵: {skip_count}건")
         print("=" * 60 + "\n")
 
     except Exception as e:
