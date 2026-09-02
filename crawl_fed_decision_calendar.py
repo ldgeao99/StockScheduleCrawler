@@ -182,7 +182,7 @@ def run_fed_crawler():
         print("=" * 60)
 
         category_name = "금리결정"
-        final_event_name = "미국 FED 연준 금리결정"
+        final_event_name = "미국 FED 중앙은행 금리결정"
 
         for ev in all_parsed_events:
             clean_m = ev["month"].replace("월", "")
