@@ -1,0 +1,35 @@
+name: crawl_central_bank_decision (Monthly)
+
+on:
+  schedule:
+    # 한국 시간(KST) 매월 1일 오전 09시 실행. UTC 1일 00:00 = KST 1일 09:00 이라
+    # UTC·KST 모두 날짜가 1일이 되어 날짜 어긋남 없이 매월 1일에 실행됨.
+    - cron: '0 0 1 * *'
+  workflow_dispatch: # 필요 시 깃허브 액션 웹에서 수동 실행 가능 버튼 활성화
+
+jobs:
+  run-crawler:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        # 💡 curl_cffi 패키지 설치 바인딩 추가
+        pip install beautifulsoup4 google-cloud-firestore curl_cffi
+
+    - name: Decode Firebase Key
+      run: |
+        echo "${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}" | base64 --decode > stockcalender-13042-firebase-adminsdk-fbsvc-18b1748d9a.json
+
+    - name: Run Central Bank (ECB/BOJ) Decision Crawler
+      run: |
+        python crawl_central_bank_decision.py
