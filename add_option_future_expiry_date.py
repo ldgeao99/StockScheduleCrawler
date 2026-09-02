@@ -20,18 +20,24 @@ CATEGORY_NAME = "주의"
 
 QUAD_WITCHING_MONTHS = {3, 6, 9, 12}
 
-QUAD_WITCHING_EVENT_NAME = "국내 선옵 동시만기일(3, 6, 9, 12월의 2번째 목요일)"
+QUAD_WITCHING_EVENT_NAME = "국내 선옵 동시만기일"
 QUAD_WITCHING_DETAIL = (
+    "3, 6, 9, 12월의 2번째 목요일\n\n"
     "만기가 되는 대표적인 상품은 '코스피200 선물/옵션', '코스닥150 선물/옵션'"
 )
 
-OPTION_EXPIRY_EVENT_NAME = "국내 옵션만기일(매월 2번째 목요일)"
+OPTION_EXPIRY_EVENT_NAME = "국내 옵션만기일"
 OPTION_EXPIRY_DETAIL = (
+    "매월 2번째 목요일\n\n"
     "만기가 되는 대표적인 상품은 '코스피200 옵션', '코스닥150 옵션'\n\n"
     "추가적으로 '미니 코스피200선물/옵션' 또한 만기(미니는 월마다 만기도래)\n\n"
     "옵션은 콜옵션(살수있는 권리), 풋옵션(팔수있는 권리)을 의미하며, "
     "만기일 이를 행하지 않으면 권한이 소멸됨."
 )
+
+# 이름 변경 전 구(舊) 이벤트명. 이름이 바뀌어도 기존 문서를 찾아 갱신(중복 생성 방지)하기 위해 함께 조회한다.
+QUAD_WITCHING_OLD_NAMES = ["국내 선옵 동시만기일(3, 6, 9, 12월의 2번째 목요일)"]
+OPTION_EXPIRY_OLD_NAMES = ["국내 옵션만기일(매월 2번째 목요일)"]
 
 
 def get_second_thursday(year: int, month: int) -> int:
@@ -71,35 +77,39 @@ def run_option_expiry_crawler():
             if month in QUAD_WITCHING_MONTHS:
                 event_name = QUAD_WITCHING_EVENT_NAME
                 detail = QUAD_WITCHING_DETAIL
+                candidate_names = [QUAD_WITCHING_EVENT_NAME] + QUAD_WITCHING_OLD_NAMES
             else:
                 event_name = OPTION_EXPIRY_EVENT_NAME
                 detail = OPTION_EXPIRY_DETAIL
+                candidate_names = [OPTION_EXPIRY_EVENT_NAME] + OPTION_EXPIRY_OLD_NAMES
 
             print(f"📅 대상 일정: {db_date_str} | {event_name}")
 
+            # 신규 이름 + 구 이름까지 함께 조회 → 이름이 바뀌어도 기존 문서를 중복 없이 갱신
             existing_docs = events_ref.where(
                 filter=FieldFilter("date", "==", db_date_str)
             ).where(
                 filter=FieldFilter("category", "==", CATEGORY_NAME)
             ).where(
-                filter=FieldFilter("eventName", "==", event_name)
+                filter=FieldFilter("eventName", "in", candidate_names)
             ).get()
 
             if len(existing_docs) > 0:
                 doc = existing_docs[0]
                 existing_data = doc.to_dict()
 
-                if detail == existing_data.get("detail"):
+                if existing_data.get("eventName") == event_name and existing_data.get("detail") == detail:
                     print(f"⏭️  [중복 스킵] 날짜: {db_date_str} | 이미 존재합니다.")
                     skip_count += 1
                     continue
 
                 doc.reference.update({
+                    "eventName": event_name,
                     "detail": detail,
                     "url": ""
                 })
                 update_count += 1
-                print(f"🔄  [정보 업데이트] 날짜: {db_date_str} | 세부 내용을 갱신했습니다.")
+                print(f"🔄  [정보 업데이트] 날짜: {db_date_str} | 이름/세부내용을 갱신했습니다.")
             else:
                 payload = {
                     "date": db_date_str,
