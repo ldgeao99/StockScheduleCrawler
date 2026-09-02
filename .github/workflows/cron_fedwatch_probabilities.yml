@@ -2,9 +2,9 @@ name: crawl_fedwatch_probabilities (Daily)
 
 on:
   schedule:
-    # 한국 시간(KST) 매일 오전 06시 1회 실행 목표.
-    # GitHub Actions cron 은 UTC 기준이므로 21:00 UTC = 익일 06:00 KST 에 해당함.
-    - cron: '0 21 * * *'
+    # 한국 시간(KST) 매일 오전 04시 1회 실행 목표.
+    # GitHub Actions cron 은 UTC 기준이므로 19:00 UTC = 익일 04:00 KST 에 해당함.
+    - cron: '0 19 * * *'
   workflow_dispatch: # 필요 시 깃허브 액션 웹에서 수동 실행 가능 버튼 활성화
 
 jobs:
